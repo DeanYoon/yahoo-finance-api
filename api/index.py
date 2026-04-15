@@ -61,7 +61,11 @@ def get_dividends(symbols: str):
         sym = sym.strip().upper()
         try:
             ticker = yf.Ticker(sym)
-            results[sym] = ticker.dividends.to_dict()
+            divs = ticker.dividends
+            # 프론트엔드가 기대하는 [{date, amount}, ...] 형식으로 변환
+            results[sym] = {
+                "dividends": [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]
+            }
         except Exception:
             results[sym] = {"error": "Failed to fetch"}
     return results
