@@ -188,21 +188,26 @@ def get_dividends(
         for sym in syms:
             try:
                 # Extract dividend entries
-                if isinstance(data, dict):
+                if isinstance(data, pd.DataFrame):
+                    try:
+                        sym_data_df = data.xs(sym, level="symbol")
+                        sym_data = sym_data_df.to_dict(orient="index")
+                    except KeyError:
+                        sym_data = {}
+                elif isinstance(data, dict):
                     sym_data = data.get(sym, [])
                 else:
-                    sym_data_df = data.xs(sym, level="symbol")
-                    sym_data = sym_data_df.to_dict(orient="index")
+                    sym_data = []
 
                 # Extract price history for this symbol
                 price_map = {}
-                if isinstance(hist, dict):
-                    hist_sym = hist.get(sym)
-                else:
+                if isinstance(hist, pd.DataFrame):
                     try:
                         hist_sym = hist.xs(sym, level="symbol")
-                    except (KeyError, TypeError):
-                        hist_sym = None
+                    except KeyError:
+                        hist_sym = pd.DataFrame()
+                else:
+                    hist_sym = hist.get(sym) if isinstance(hist, dict) else pd.DataFrame()
 
                 if isinstance(hist_sym, pd.DataFrame) and not hist_sym.empty:
                     # Build a mapping of date string to close price
@@ -220,13 +225,22 @@ def get_dividends(
                         }
 
                 # Build result
-                if isinstance(sym_data, list):
-                    result[sym] = sym_data
-                elif isinstance(sym_data, dict):
+                # Ensure dividend entries are properly mapped
+                if isinstance(sym_data, dict):
                     entries = []
+                    # sym_data could have keys as timestamps or strings
                     for date, val in sorted(sym_data.items()):
+                        # date might be a Timestamp
                         date_str = str(date)[:10]
-                        amount = val.get("dividends") if isinstance(val, dict) else val
+                        
+                        # Fix: Handle multiple structures for 'val'
+                        # Structure 1: {'2025-02-10': {'dividends': 0.25}}
+                        # Structure 2: {'2025-02-10': 0.25} (if from simple list)
+                        if isinstance(val, dict):
+                            amount = val.get("dividends") if "dividends" in val else val.get("amount")
+                        else:
+                            amount = val
+                            
                         close = price_map.get(date_str)
                         entries.append({
                             "date": date_str,
@@ -234,8 +248,6 @@ def get_dividends(
                             "close": close,
                         })
                     result[sym] = entries
-                else:
-                    result[sym] = []
             except Exception:
                 result[sym] = []
 
