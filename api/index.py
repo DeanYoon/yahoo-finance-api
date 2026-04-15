@@ -6,8 +6,12 @@ from api.nikkei_crawler import get_session, scrape_fund_data
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.3.0")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.get("/")
+def root():
+    return {"status": "ok", "endpoints": ["/quote", "/summary", "/history", "/dividends", "/search"]}
 
 @app.get("/quote")
 def get_quote(symbols: str):
@@ -16,19 +20,20 @@ def get_quote(symbols: str):
         sym = sym.strip().upper()
         try:
             ticker = yf.Ticker(sym)
-            # info가 가장 확실하지만 느림. 1d history를 통해 실시간 근사치 확보 시도
-            hist = ticker.history(period="1d")
-            data = ticker.info
+            info = ticker.info
             results[sym] = {
-                "price": hist['Close'].iloc[-1] if not hist.empty else data.get('regularMarketPrice'),
-                "currency": data.get('currency'),
-                "marketCap": data.get('marketCap'),
-                "dayHigh": data.get('dayHigh'),
-                "dayLow": data.get('dayLow'),
-                "volume": data.get('volume')
+                "price": info.get('regularMarketPrice'),
+                "change": info.get('regularMarketChange'),
+                "changePercent": info.get('regularMarketChangePercent'),
+                "previousClose": info.get('regularMarketPreviousClose'),
+                "currency": info.get('currency'),
+                "marketCap": info.get('marketCap'),
+                "dayHigh": info.get('dayHigh'),
+                "dayLow": info.get('dayLow'),
+                "volume": info.get('volume')
             }
-        except Exception:
-            results[sym] = {"error": "Failed to fetch"}
+        except Exception as e:
+            results[sym] = {"error": str(e)}
     return results
 
 @app.get("/summary")
@@ -60,12 +65,9 @@ def get_dividends(symbols: str):
     for sym in symbols.split(","):
         sym = sym.strip().upper()
         try:
-            ticker = yf.Ticker(sym)
-            divs = ticker.dividends
-            # 프론트엔드가 기대하는 [{date, amount}, ...] 형식으로 변환
-            results[sym] = {
-                "dividends": [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]
-            }
+            # 배열 포맷으로 변경
+            divs = yf.Ticker(sym).dividends
+            results[sym] = [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]
         except Exception:
             results[sym] = {"error": "Failed to fetch"}
     return results
