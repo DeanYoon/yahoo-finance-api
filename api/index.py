@@ -6,7 +6,7 @@ from api.nikkei_crawler import get_session, scrape_fund_data
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.5.0")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -54,9 +54,16 @@ def get_history(symbols: str, period: str = "1mo", interval: str = "1d"):
         sym = sym.strip().upper()
         try:
             df = yf.Ticker(sym).history(period=period, interval=interval)
-            # 프론트가 그래프를 그릴 수 있게 객체 대신 배열 배열로 변환
+            # 프론트가 기대하는 소문자 'close'로 변환
             results[sym] = [
-                {"date": str(date)[:10], **row.to_dict()}
+                {
+                    "date": str(date)[:10],
+                    "open": row.get("Open"),
+                    "high": row.get("High"),
+                    "low": row.get("Low"),
+                    "close": row.get("Close"),
+                    "volume": row.get("Volume")
+                }
                 for date, row in df.iterrows()
             ]
         except Exception as e:
