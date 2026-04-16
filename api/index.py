@@ -77,7 +77,7 @@ def get_dividends(symbols: str):
         sym = sym.strip().upper()
         try:
             divs = yf.Ticker(sym).dividends
-            results[sym] = {"dividends": [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]}
+            results[sym] = {"dividends": [{"date": d[:10] if isinstance(d, str) else str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]}
         except Exception as e:
             results[sym] = {"error": str(e)}
     return results
