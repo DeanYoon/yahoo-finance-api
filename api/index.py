@@ -6,7 +6,7 @@ from api.nikkei_crawler import get_session, scrape_fund_data
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.4.0")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -54,9 +54,13 @@ def get_history(symbols: str, period: str = "1mo", interval: str = "1d"):
         sym = sym.strip().upper()
         try:
             df = yf.Ticker(sym).history(period=period, interval=interval)
-            results[sym] = df.to_dict(orient="index") if not df.empty else []
-        except Exception:
-            results[sym] = {"error": "Failed to fetch"}
+            # 프론트가 그래프를 그릴 수 있게 객체 대신 배열 배열로 변환
+            results[sym] = [
+                {"date": str(date)[:10], **row.to_dict()}
+                for date, row in df.iterrows()
+            ]
+        except Exception as e:
+            results[sym] = {"error": str(e)}
     return results
 
 @app.get("/dividends")
@@ -65,9 +69,8 @@ def get_dividends(symbols: str):
     for sym in symbols.split(","):
         sym = sym.strip().upper()
         try:
-            # 배열 포맷으로 변경
             divs = yf.Ticker(sym).dividends
-            results[sym] = [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]
+            results[sym] = {"dividends": [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]}
         except Exception:
             results[sym] = {"error": "Failed to fetch"}
     return results
