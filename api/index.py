@@ -2,11 +2,12 @@ import yfinance as yf
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from api.nikkei_crawler import get_session, scrape_fund_data
+import pandas as pd
 
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.3")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.4")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -76,12 +77,14 @@ def get_dividends(symbols: str):
         sym = sym.strip().upper()
         try:
             divs = yf.Ticker(sym).dividends
-            # divs는 DatetimeIndex 인덱스를 가진 Series
             div_list = []
             if divs is not None and not divs.empty:
-                # v가 Series 타입일 경우 대응
                 for d, v in divs.items():
-                    val = float(v) if not hasattr(v, 'item') else float(v.item())
+                    # 안전한 float 변환
+                    if isinstance(v, (pd.Series, pd.DataFrame)):
+                        val = float(v.iloc[0])
+                    else:
+                        val = float(v)
                     div_list.append({"date": str(d)[:10], "amount": val})
             results[sym] = {"dividends": div_list}
         except Exception as e:
