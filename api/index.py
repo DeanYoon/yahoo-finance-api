@@ -6,7 +6,7 @@ from api.nikkei_crawler import get_session, scrape_fund_data
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.0")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.3")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -43,8 +43,8 @@ def get_summary(symbols: str):
         sym = sym.strip().upper()
         try:
             results[sym] = yf.Ticker(sym).info
-        except Exception as e:
-            results[sym] = {"error": str(e)}
+        except Exception:
+            results[sym] = {"error": "Failed to fetch"}
     return results
 
 @app.get("/history")
@@ -54,15 +54,14 @@ def get_history(symbols: str, period: str = "1mo", interval: str = "1d"):
         sym = sym.strip().upper()
         try:
             df = yf.Ticker(sym).history(period=period, interval=interval)
-            # 프론트가 기대하는 소문자 'close'로 변환
             results[sym] = [
                 {
                     "date": str(date)[:10],
-                    "open": row.get("Open"),
-                    "high": row.get("High"),
-                    "low": row.get("Low"),
-                    "close": row.get("Close"),
-                    "volume": row.get("Volume")
+                    "open": float(row.get("Open")),
+                    "high": float(row.get("High")),
+                    "low": float(row.get("Low")),
+                    "close": float(row.get("Close")),
+                    "volume": float(row.get("Volume"))
                 }
                 for date, row in df.iterrows()
             ]
@@ -77,7 +76,14 @@ def get_dividends(symbols: str):
         sym = sym.strip().upper()
         try:
             divs = yf.Ticker(sym).dividends
-            results[sym] = {"dividends": [{"date": d[:10] if isinstance(d, str) else str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]}
+            # divs는 DatetimeIndex 인덱스를 가진 Series
+            div_list = []
+            if divs is not None and not divs.empty:
+                # v가 Series 타입일 경우 대응
+                for d, v in divs.items():
+                    val = float(v) if not hasattr(v, 'item') else float(v.item())
+                    div_list.append({"date": str(d)[:10], "amount": val})
+            results[sym] = {"dividends": div_list}
         except Exception as e:
             results[sym] = {"error": str(e)}
     return results
