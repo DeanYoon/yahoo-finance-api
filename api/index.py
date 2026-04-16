@@ -43,8 +43,8 @@ def get_summary(symbols: str):
         sym = sym.strip().upper()
         try:
             results[sym] = yf.Ticker(sym).info
-        except Exception:
-            results[sym] = {"error": "Failed to fetch"}
+        except Exception as e:
+            results[sym] = {"error": str(e)}
     return results
 
 @app.get("/history")
@@ -78,8 +78,8 @@ def get_dividends(symbols: str):
         try:
             divs = yf.Ticker(sym).dividends
             results[sym] = {"dividends": [{"date": str(d.date())[:10], "amount": float(v)} for d, v in divs.items()]}
-        except Exception:
-            results[sym] = {"error": "Failed to fetch"}
+        except Exception as e:
+            results[sym] = {"error": str(e)}
     return results
 
 @app.get("/search")
