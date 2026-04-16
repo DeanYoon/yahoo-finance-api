@@ -7,7 +7,7 @@ import pandas as pd
 # 캐시 경로 설정
 yf.set_tz_cache_location('/tmp')
 
-app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.4")
+app = FastAPI(title="Yahoo Finance API", description="Reliable yfinance API", version="1.6.5")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -79,13 +79,12 @@ def get_dividends(symbols: str):
             divs = yf.Ticker(sym).dividends
             div_list = []
             if divs is not None and not divs.empty:
+                # divs가 Series일 때 인덱스(날짜)와 값(금액) 명확히 처리
                 for d, v in divs.items():
-                    # 안전한 float 변환
-                    if isinstance(v, (pd.Series, pd.DataFrame)):
-                        val = float(v.iloc[0])
-                    else:
-                        val = float(v)
-                    div_list.append({"date": str(d)[:10], "amount": val})
+                    val = float(v) if not hasattr(v, 'item') else float(v.item())
+                    # d가 Timestamp 객체이거나 string일 수 있음
+                    date_str = str(d)[:10]
+                    div_list.append({"date": date_str, "amount": val})
             results[sym] = {"dividends": div_list}
         except Exception as e:
             results[sym] = {"error": str(e)}
